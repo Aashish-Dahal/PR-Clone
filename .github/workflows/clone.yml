@@ -8,6 +8,9 @@ on:
 jobs:
   duplicate-auth-feature:
     runs-on: ubuntu-latest
+    env:
+      commits: ""
+
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v3
@@ -18,25 +21,28 @@ jobs:
       - name: Get PR commits from develop with auth-feature scope
         id: auth_commits
         run: |
-          # Fetch the list of commit hashes that match the scope
-          COMMITS=$(git log --pretty=format:"%H" --grep="^feat(auth-feature):" origin/develop)
+          # Fetch the list of commit hashes that match the scope "auth-feature"
+          COMMITS=$(git log --pretty=format:"%H" --grep="(auth-feature):" origin/develop)
           echo "$COMMITS" > auth_commits.txt
-          echo "::set-output name=commits::$COMMITS"
+          echo "commits=$COMMITS" >> $GITHUB_ENV  # Write to Environment File
 
       - name: Checkout staging branch
         run: git checkout staging
 
       - name: Cherry-pick auth-feature commits into staging
+        if: ${{ env.commits != '' }}
         run: |
           while read -r COMMIT; do
             git cherry-pick "$COMMIT" || exit 1
           done < auth_commits.txt
 
       - name: Push changes to staging
+        if: ${{ env.commits != '' }}
         run: |
           git push origin staging
 
       - name: Create PR from staging to develop
+        if: ${{ env.commits != '' }}
         uses: peter-evans/create-pull-request@v5
         with:
           title: "AUTH Feature point to staging branch"
