@@ -1,0 +1,46 @@
+name: Duplicate PR to Staging
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  cherry-pick-to-staging:
+    runs-on: ubuntu-latest
+    if: github.event.head_commit.message != '' # Only run if there is a commit message
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get Latest Commit Message
+        id: commit_message
+        run: |
+          echo "::set-output name=message::$(git log -1 --pretty=%B)"
+
+      - name: Cherry-pick to Staging
+        env:
+          COMMIT_MSG: ${{ steps.commit_message.outputs.message }}
+        run: |
+          # Extract scope and check if it's relevant for staging
+          if [[ "$COMMIT_MSG" == *"scope: staging"* ]]; then
+            git fetch origin staging
+            git checkout staging
+            git cherry-pick $GITHUB_SHA
+
+            # Push to staging
+            git push origin staging
+          else
+            echo "Commit scope not relevant for staging."
+          fi
+
+      - name: Close Duplicate PR if Necessary
+        if: success()
+        run: |
+          echo "If applicable, create or close PR from develop to staging."
