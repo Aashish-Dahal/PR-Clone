@@ -1,4 +1,4 @@
-name: Duplicate PR to Staging
+name: Duplicate Auth-Feature PR to Staging
 
 on:
   push:
@@ -6,41 +6,41 @@ on:
       - develop
 
 jobs:
-  cherry-pick-to-staging:
+  duplicate-auth-feature:
     runs-on: ubuntu-latest
-    if: github.event.head_commit.message != '' # Only run if there is a commit message
-
     steps:
-      - name: Check out repository
+      - name: Checkout the repository
         uses: actions/checkout@v3
 
-      - name: Set up Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch all branches and tags
+        run: git fetch --all
 
-      - name: Get Latest Commit Message
-        id: commit_message
+      - name: Get PR commits from develop with auth-feature scope
+        id: auth_commits
         run: |
-          echo "::set-output name=message::$(git log -1 --pretty=%B)"
+          # Fetch the list of commit hashes that match the scope
+          COMMITS=$(git log --pretty=format:"%H" --grep="^feat(auth-feature):" origin/develop)
+          echo "$COMMITS" > auth_commits.txt
+          echo "::set-output name=commits::$COMMITS"
 
-      - name: Cherry-pick to Staging
-        env:
-          COMMIT_MSG: ${{ steps.commit_message.outputs.message }}
+      - name: Checkout staging branch
+        run: git checkout staging
+
+      - name: Cherry-pick auth-feature commits into staging
         run: |
-          # Extract scope and check if it's relevant for staging
-          if [[ "$COMMIT_MSG" == *"scope: staging"* ]]; then
-            git fetch origin staging
-            git checkout staging
-            git cherry-pick $GITHUB_SHA
+          while read -r COMMIT; do
+            git cherry-pick "$COMMIT" || exit 1
+          done < auth_commits.txt
 
-            # Push to staging
-            git push origin staging
-          else
-            echo "Commit scope not relevant for staging."
-          fi
-
-      - name: Close Duplicate PR if Necessary
-        if: success()
+      - name: Push changes to staging
         run: |
-          echo "If applicable, create or close PR from develop to staging."
+          git push origin staging
+
+      - name: Create PR from staging to develop
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "AUTH Feature point to staging branch"
+          head: staging
+          base: develop
+          body: "This PR includes commits related to the AUTH feature from the `develop` branch."
+          labels: "automated"
