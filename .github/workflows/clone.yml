@@ -30,19 +30,16 @@ jobs:
         run: git checkout staging
 
       - name: Cherry-pick auth-feature commits into staging
-        if: ${{ env.commits != '' }}
         run: |
           while read -r COMMIT; do
             git cherry-pick "$COMMIT" || exit 1
           done < auth_commits.txt
 
       - name: Push changes to staging
-        if: ${{ env.commits != '' }}
         run: |
           git push origin staging
 
       - name: Create PR from staging to develop
-        if: ${{ env.commits != '' }}
         uses: peter-evans/create-pull-request@v5
         with:
           title: "AUTH Feature point to staging branch"
